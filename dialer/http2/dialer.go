@@ -2,17 +2,18 @@ package http2
 
 import (
 	"context"
+	"crypto/tls"
 	"net"
 	"net/http"
 	"sync"
 	"time"
 
-	net_dialer "github.com/go-gost/core/common/net/dialer"
 	"github.com/go-gost/core/dialer"
 	"github.com/go-gost/core/logger"
 	md "github.com/go-gost/core/metadata"
 	mdx "github.com/go-gost/x/metadata"
 	"github.com/go-gost/x/registry"
+	"golang.org/x/net/http2"
 )
 
 func init() {
@@ -71,27 +72,31 @@ func (d *http2Dialer) Dial(ctx context.Context, address string, opts ...dialer.D
 		}
 
 		client = &http.Client{
-			Transport: &http.Transport{
+			Transport: &http2.Transport{
+				// 客户端发送ping frame进行连接探测；服务端IdleTimeout默认是5分钟，即使期间存在ping也认为是空闲连接
+				ReadIdleTimeout: d.md.ttl,
 				TLSClientConfig: d.options.TLSConfig,
-				DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-					netd := options.NetDialer
-					if netd == nil {
-						netd = net_dialer.DefaultNetDialer
+				DialTLSContext: func(ctx context.Context, network, addr string, cfg *tls.Config) (net.Conn, error) {
+					// NetDialer的DefaultTimeout是10s
+					conn, err := options.NetDialer.Dial(ctx, network, addr)
+					if err != nil {
+						return nil, err
 					}
-					return netd.Dial(ctx, network, addr)
+					conn.SetDeadline(time.Now().Add(5 * time.Second))
+					defer conn.SetDeadline(time.Time{})
+					tlsConn := tls.Client(conn, cfg)
+					if err = tlsConn.Handshake(); err != nil {
+						tlsConn.Close()
+						return nil, err
+					}
+					return tlsConn, nil
 				},
-				ForceAttemptHTTP2:     true,
-				MaxIdleConns:          100,
-				IdleConnTimeout:       90 * time.Second,
-				TLSHandshakeTimeout:   10 * time.Second,
-				ExpectContinueTimeout: 1 * time.Second,
 			},
 		}
 		d.clients[address] = client
 	}
 
-	var c net.Conn
-	c = &conn{
+	c := &conn{
 		localAddr:  &net.TCPAddr{},
 		remoteAddr: raddr,
 		onClose: func() {
