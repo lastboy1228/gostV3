@@ -69,14 +69,13 @@ func (h *httpHandler) Handle(ctx context.Context, conn net.Conn, opts ...handler
 
 	start := time.Now()
 	log := h.options.Logger.WithFields(map[string]any{
-		"remote": conn.RemoteAddr().String(),
-		"local":  conn.LocalAddr().String(),
+		"gost": conn.LocalAddr().String(),
 	})
-	log.Infof("%s <> %s", conn.RemoteAddr(), conn.LocalAddr())
+	log.Infof("(client)%s <> %s", conn.RemoteAddr(), conn.LocalAddr())
 	defer func() {
 		log.WithFields(map[string]any{
 			"duration": time.Since(start),
-		}).Infof("%s >< %s", conn.RemoteAddr(), conn.LocalAddr())
+		}).Infof("closed (client)%s >< (gost)%s", conn.RemoteAddr(), conn.LocalAddr())
 	}()
 
 	if !h.checkRateLimit(conn.RemoteAddr()) {
@@ -228,12 +227,8 @@ func (h *httpHandler) handleRequest(ctx context.Context, conn net.Conn, req *htt
 		traffic.SrcOption(conn.RemoteAddr().String()),
 	)
 
-	start := time.Now()
-	log.Infof("%s <-> %s", conn.RemoteAddr(), addr)
+	log.Infof("established (client)%s <-> (dst)%s", conn.RemoteAddr(), addr)
 	netpkg.Transport(rw, cc)
-	log.WithFields(map[string]any{
-		"duration": time.Since(start),
-	}).Infof("%s >-< %s", conn.RemoteAddr(), addr)
 
 	return nil
 }

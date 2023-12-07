@@ -97,7 +97,9 @@ func (c *Chain) Route(ctx context.Context, network, address string, opts ...chai
 			hop.HostSelectOption(options.Host),
 		)
 		if node == nil {
-			return rt
+			// return rt
+			// 跳过不匹配的hop
+			continue
 		}
 		if node.Options().Transport.Multiplex() {
 			tr := node.Options().Transport.Copy()

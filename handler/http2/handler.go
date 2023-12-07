@@ -69,14 +69,13 @@ func (h *http2Handler) Handle(ctx context.Context, conn net.Conn, opts ...handle
 
 	start := time.Now()
 	log := h.options.Logger.WithFields(map[string]any{
-		"remote": conn.RemoteAddr().String(),
-		"local":  conn.LocalAddr().String(),
+		"gost": conn.LocalAddr().String(),
 	})
-	log.Infof("%s <> %s", conn.RemoteAddr(), conn.LocalAddr())
+	log.Infof("(client)%s <> %s", conn.RemoteAddr(), conn.LocalAddr())
 	defer func() {
 		log.WithFields(map[string]any{
 			"duration": time.Since(start),
-		}).Infof("%s >< %s", conn.RemoteAddr(), conn.LocalAddr())
+		}).Infof("(client)%s >< %s", conn.RemoteAddr(), conn.LocalAddr())
 	}()
 
 	if !h.checkRateLimit(conn.RemoteAddr()) {
