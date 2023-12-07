@@ -11,6 +11,7 @@ import (
 	"github.com/go-gost/core/logger"
 	md "github.com/go-gost/core/metadata"
 	admission "github.com/go-gost/x/admission/wrapper"
+	"github.com/go-gost/x/config/parsing"
 	xnet "github.com/go-gost/x/internal/net"
 	"github.com/go-gost/x/internal/net/proxyproto"
 	climiter "github.com/go-gost/x/limiter/conn/wrapper"
@@ -50,11 +51,16 @@ func (l *http2Listener) Init(md md.Metadata) (err error) {
 	if err = l.parseMetadata(md); err != nil {
 		return
 	}
-
+	if l.options.TLSConfig == nil {
+		l.options.TLSConfig = parsing.DefaultTLSConfig().Clone()
+	}
+	l.options.TLSConfig.MinVersion = tls.VersionTLS13
+	l.options.TLSConfig.CurvePreferences = []tls.CurveID{tls.X25519}
 	l.server = &http.Server{
-		Addr:      l.options.Addr,
-		Handler:   http.HandlerFunc(l.handleFunc),
-		TLSConfig: l.options.TLSConfig,
+		Addr:        l.options.Addr,
+		Handler:     http.HandlerFunc(l.handleFunc),
+		TLSConfig:   l.options.TLSConfig,
+		IdleTimeout: l.md.maxIdleTimeout,
 	}
 	if err := http2.ConfigureServer(l.server, nil); err != nil {
 		return err
